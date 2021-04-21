@@ -227,24 +227,46 @@ struct branch_predictor *ltl_branch_predictor_new(uint32_t num_branches,
 
 // 2BG Branch Predictor
 // ============================================================================
+struct tbg_data{
+	uint32_t ghr;
+	uint32_t *pht;
+};
 
 enum branch_direction tbg_branch_predictor_predict(struct branch_predictor *branch_predictor,
                                                    uint32_t address)
 {
-    // TODO: return this branch predictors prediction for the branch at the
+    // return this branch predictors prediction for the branch at the
     // given address.
+    if(((struct tbg_data*) branch_predictor->data)->pht[((struct tbg_data*) branch_predictor->data)->ghr] > 1)
+	    return TAKEN;
+    return NOT_TAKEN;
 }
 
 void tbg_branch_predictor_handle_result(struct branch_predictor *branch_predictor, uint32_t address,
                                         enum branch_direction branch_direction)
 {
-    // TODO: use this function to update the state of the branch predictor
+    // use this function to update the state of the branch predictor
     // given the most recent branch direction.
+    uint32_t ghr = ((struct tbg_data*) branch_predictor->data)->ghr;
+    uint32_t pht = ((struct tbg_data*) branch_predictor->data)->pht[ghr];
+    if(branch_direction == TAKEN && pht < 3){
+	    ((struct tbg_data*) branch_predictor->data)->pht[ghr]++;
+    }else if(branch_direction == NOT_TAKEN && pht > 0){
+	    ((struct tbg_data*) branch_predictor->data)->pht[ghr]--;
+    }
+
+    ghr = ((ghr << 28) >> 27);
+    if(branch_direction == TAKEN)
+	    ghr++;
+    ((struct tbg_data*) branch_predictor->data)->ghr = ghr;
+
 }
 
 void tbg_branch_predictor_cleanup(struct branch_predictor *branch_predictor)
 {
-    // TODO cleanup if necessary
+    // cleanup if necessary
+    free(((struct tbg_data*) branch_predictor->data)->pht);
+    free(((struct tbg_data*) branch_predictor->data));
 }
 
 struct branch_predictor *tbg_branch_predictor_new(uint32_t num_branches,
@@ -255,7 +277,14 @@ struct branch_predictor *tbg_branch_predictor_new(uint32_t num_branches,
     tbg_bp->predict = &tbg_branch_predictor_predict;
     tbg_bp->handle_result = &tbg_branch_predictor_handle_result;
 
-    // TODO allocate storage for any data necessary for this branch predictor
+    //allocate storage for any data necessary for this branch predictor
+    struct tbg_data *new_data = malloc(sizeof(struct tbg_data));
+    new_data->pht = malloc(32*sizeof(uint32_t));
+    for(int i = 0; i < 32; i++){
+	    new_data->pht[i] = 0;
+    }
+    new_data->ghr = 0;
+    tbg_bp->data = new_data;
 
     return tbg_bp;
 }
