@@ -22,20 +22,22 @@
 enum branch_direction ant_branch_predictor_predict(struct branch_predictor *branch_predictor,
                                                    uint32_t address)
 {
-    // TODO: return this branch predictors prediction for the branch at the
+    // return this branch predictors prediction for the branch at the
     // given address.
+    return NOT_TAKEN;  
+
 }
 
 void ant_branch_predictor_handle_result(struct branch_predictor *branch_predictor, uint32_t address,
                                         enum branch_direction branch_direction)
 {
-    // TODO: use this function to update the state of the branch predictor
+    // use this function to update the state of the branch predictor
     // given the most recent branch direction.
 }
 
 void ant_branch_predictor_cleanup(struct branch_predictor *branch_predictor)
 {
-    // TODO cleanup if necessary
+    // cleanup if necessary
 }
 
 struct branch_predictor *ant_branch_predictor_new(uint32_t num_branches,
@@ -46,7 +48,7 @@ struct branch_predictor *ant_branch_predictor_new(uint32_t num_branches,
     ant_bp->predict = &ant_branch_predictor_predict;
     ant_bp->handle_result = &ant_branch_predictor_handle_result;
 
-    // TODO allocate storage for any data necessary for this branch predictor
+    // allocate storage for any data necessary for this branch predictor
 
     return ant_bp;
 }
@@ -57,20 +59,21 @@ struct branch_predictor *ant_branch_predictor_new(uint32_t num_branches,
 enum branch_direction at_branch_predictor_predict(struct branch_predictor *branch_predictor,
                                                   uint32_t address)
 {
-    // TODO: return this branch predictors prediction for the branch at the
+    // return this branch predictors prediction for the branch at the
     // given address.
+    return TAKEN;
 }
 
 void at_branch_predictor_handle_result(struct branch_predictor *branch_predictor, uint32_t address,
                                        enum branch_direction branch_direction)
 {
-    // TODO: use this function to update the state of the branch predictor
+    // use this function to update the state of the branch predictor
     // given the most recent branch direction.
 }
 
 void at_branch_predictor_cleanup(struct branch_predictor *branch_predictor)
 {
-    // TODO cleanup if necessary
+    // leanup if necessary
 }
 
 struct branch_predictor *at_branch_predictor_new(uint32_t num_branches,
@@ -81,31 +84,39 @@ struct branch_predictor *at_branch_predictor_new(uint32_t num_branches,
     at_bp->predict = &at_branch_predictor_predict;
     at_bp->handle_result = &at_branch_predictor_handle_result;
 
-    // TODO allocate storage for any data necessary for this branch predictor
+    // allocate storage for any data necessary for this branch predictor
 
     return at_bp;
 }
 
 // BTFNT Branch Predictor
 // ============================================================================
+struct btfnt_data{
+	uint32_t prev_address;
+};
 
 enum branch_direction btfnt_branch_predictor_predict(struct branch_predictor *branch_predictor,
                                                      uint32_t address)
 {
-    // TODO: return this branch predictors prediction for the branch at the
+    // return this branch predictors prediction for the branch at the
     // given address.
+    if(address < ((struct btfnt_data*) branch_predictor->data)->prev_address)
+	    return TAKEN;
+    return NOT_TAKEN;
 }
 
 void btfnt_branch_predictor_handle_result(struct branch_predictor *branch_predictor,
                                           uint32_t address, enum branch_direction branch_direction)
 {
-    // TODO: use this function to update the state of the branch predictor
+    // use this function to update the state of the branch predictor
     // given the most recent branch direction.
+    ((struct btfnt_data*) branch_predictor->data)->prev_address = address;
 }
 
 void btfnt_branch_predictor_cleanup(struct branch_predictor *branch_predictor)
 {
-    // TODO cleanup if necessary
+    // cleanup if necessary
+    free(((struct btfnt_data*) branch_predictor->data));
 }
 
 struct branch_predictor *btfnt_branch_predictor_new(uint32_t num_branches,
@@ -116,31 +127,47 @@ struct branch_predictor *btfnt_branch_predictor_new(uint32_t num_branches,
     btfnt_bp->predict = &btfnt_branch_predictor_predict;
     btfnt_bp->handle_result = &btfnt_branch_predictor_handle_result;
 
-    // TODO allocate storage for any data necessary for this branch predictor
+    // allocate storage for any data necessary for this branch predictor
+    struct btfnt_data *new_data = malloc(sizeof(struct btfnt_data));
+    new_data->prev_address = -1;
+    btfnt_bp->data = new_data;
 
     return btfnt_bp;
 }
 
 // LTG Branch Predictor
 // ============================================================================
+struct ltg_data{
+	uint32_t ghr;
+	enum branch_direction *pht;
+};
 
 enum branch_direction ltg_branch_predictor_predict(struct branch_predictor *branch_predictor,
                                                    uint32_t address)
 {
-    // TODO: return this branch predictors prediction for the branch at the
+    // return this branch predictors prediction for the branch at the
     // given address.
+    return ((struct ltg_data*) branch_predictor->data)->pht[((struct ltg_data*) branch_predictor->data)->ghr];
 }
 
 void ltg_branch_predictor_handle_result(struct branch_predictor *branch_predictor, uint32_t address,
                                         enum branch_direction branch_direction)
 {
-    // TODO: use this function to update the state of the branch predictor
+    // use this function to update the state of the branch predictor
     // given the most recent branch direction.
+    uint32_t ghr = ((struct ltg_data*) branch_predictor->data)->ghr;
+    ((struct ltg_data*) branch_predictor->data)->pht[ghr] = branch_direction;
+    ghr = ((ghr << 28) >> 27);
+    if(branch_direction == TAKEN)
+	    ghr++;
+    ((struct ltg_data*) branch_predictor->data)->ghr = ghr;
 }
 
 void ltg_branch_predictor_cleanup(struct branch_predictor *branch_predictor)
 {
-    // TODO cleanup if necessary
+    // cleanup if necessary
+    free(((struct ltg_data*) branch_predictor->data)->pht);
+    free(((struct ltg_data*) branch_predictor->data));
 }
 
 struct branch_predictor *ltg_branch_predictor_new(uint32_t num_branches,
@@ -151,7 +178,14 @@ struct branch_predictor *ltg_branch_predictor_new(uint32_t num_branches,
     ltg_bp->predict = &ltg_branch_predictor_predict;
     ltg_bp->handle_result = &ltg_branch_predictor_handle_result;
 
-    // TODO allocate storage for any data necessary for this branch predictor
+    // allocate sto rage for any data necessary for this branch predictor
+    struct ltg_data *new_data = malloc(sizeof(struct ltg_data));
+    new_data->pht = malloc(32*sizeof(enum branch_direction));
+    for(int i = 0; i < 32; i++){
+	    new_data->pht[i] = NOT_TAKEN;
+    }
+    new_data->ghr = 0;
+    ltg_bp->data = new_data;
 
     return ltg_bp;
 }
