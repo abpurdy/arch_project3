@@ -192,24 +192,42 @@ struct branch_predictor *ltg_branch_predictor_new(uint32_t num_branches,
 
 // LTL Branch Predictor
 // ============================================================================
+struct ltl_data{
+	uint32_t *lhr;
+	enum branch_direction *pht;
+};
 
 enum branch_direction ltl_branch_predictor_predict(struct branch_predictor *branch_predictor,
                                                    uint32_t address)
 {
     // TODO: return this branch predictors prediction for the branch at the
-    // given address.
+    // given address.i
+    uint32_t lhr_index = ((address << 28) >> 28);
+    return ((struct ltl_data*) branch_predictor->data)->pht[16*lhr_index + ((struct ltl_data*) branch_predictor->data)->lhr[lhr_index]];
+
 }
 
 void ltl_branch_predictor_handle_result(struct branch_predictor *branch_predictor, uint32_t address,
                                         enum branch_direction branch_direction)
 {
-    // TODO: use this function to update the state of the branch predictor
+    // use this function to update the state of the branch predictor
     // given the most recent branch direction.
+    uint32_t lhr_index = ((address << 28) >> 28);
+    uint32_t lhr= ((struct ltl_data*) branch_predictor->data)->lhr[lhr_index];
+    ((struct ltl_data*) branch_predictor->data)->pht[16*lhr_index + lhr] = branch_direction;
+
+    lhr = ((lhr << 29) >> 28);
+    if(branch_direction == TAKEN)
+	    lhr++;
+    ((struct ltl_data*) branch_predictor->data)->lhr[lhr_index] = lhr;
 }
 
 void ltl_branch_predictor_cleanup(struct branch_predictor *branch_predictor)
 {
-    // TODO cleanup if necessary
+    // cleanup if necessary
+    free(((struct ltl_data*) branch_predictor->data)->lhr);
+    free(((struct ltl_data*) branch_predictor->data)->pht);
+    free(((struct ltl_data*) branch_predictor->data));
 }
 
 struct branch_predictor *ltl_branch_predictor_new(uint32_t num_branches,
@@ -220,7 +238,17 @@ struct branch_predictor *ltl_branch_predictor_new(uint32_t num_branches,
     ltl_bp->predict = &ltl_branch_predictor_predict;
     ltl_bp->handle_result = &ltl_branch_predictor_handle_result;
 
-    // TODO allocate storage for any data necessary for this branch predictor
+    // allocate storage for any data necessary for this branch predictor
+    struct ltl_data *new_data = malloc(sizeof(struct ltl_data));
+    new_data->pht = malloc(16*16*sizeof(enum branch_direction));
+    for(int i = 0; i < 256; i++){
+	    new_data->pht[i] = NOT_TAKEN;
+    }
+    new_data->lhr = malloc(16*sizeof(uint32_t));
+    for(int i = 0; i < 16; i++){
+	    new_data->lhr[i] = 0;
+    }
+    ltl_bp->data = new_data;
 
     return ltl_bp;
 }
