@@ -200,7 +200,7 @@ struct ltl_data{
 enum branch_direction ltl_branch_predictor_predict(struct branch_predictor *branch_predictor,
                                                    uint32_t address)
 {
-    // TODO: return this branch predictors prediction for the branch at the
+    // return this branch predictors prediction for the branch at the
     // given address.i
     uint32_t lhr_index = ((address << 28) >> 28);
     return ((struct ltl_data*) branch_predictor->data)->pht[16*lhr_index + ((struct ltl_data*) branch_predictor->data)->lhr[lhr_index]];
@@ -319,24 +319,49 @@ struct branch_predictor *tbg_branch_predictor_new(uint32_t num_branches,
 
 // 2BL Branch Predictor
 // ============================================================================
+struct tbl_data{
+	uint32_t *lhr;
+	uint32_t *pht;
+};
 
 enum branch_direction tbl_branch_predictor_predict(struct branch_predictor *branch_predictor,
                                                    uint32_t address)
 {
     // TODO: return this branch predictors prediction for the branch at the
     // given address.
+    uint32_t lhr_index = ((address << 28) >> 28);
+    if(((struct ltl_data*) branch_predictor->data)->pht[16*lhr_index + ((struct ltl_data*) branch_predictor->data)->lhr[lhr_index]] > 1)
+	    return TAKEN;
+    return NOT_TAKEN;
 }
 
 void tbl_branch_predictor_handle_result(struct branch_predictor *branch_predictor, uint32_t address,
                                         enum branch_direction branch_direction)
 {
-    // TODO: use this function to update the state of the branch predictor
+    // use this function to update the state of the branch predictor
     // given the most recent branch direction.
+    uint32_t lhr_index = ((address << 28) >> 28);
+    uint32_t lhr = ((struct tbl_data*) branch_predictor->data)->lhr[lhr_index];
+    uint32_t pht = ((struct tbl_data*) branch_predictor->data)->pht[16*lhr_index + lhr];
+    if(branch_direction == TAKEN && pht < 3){
+	    ((struct tbl_data*) branch_predictor->data)->pht[16*lhr_index + lhr]++;
+    }else if(branch_direction == NOT_TAKEN && pht > 0){
+	    ((struct tbl_data*) branch_predictor->data)->pht[16*lhr_index + lhr]--;
+    }
+
+    lhr = ((lhr << 29) >> 28);
+    if(branch_direction == TAKEN)
+	    lhr++;
+    ((struct tbl_data*) branch_predictor->data)->lhr[lhr_index] = lhr;
 }
 
 void tbl_branch_predictor_cleanup(struct branch_predictor *branch_predictor)
 {
-    // TODO cleanup if necessary
+    // cleanup if necessary
+    free(((struct tbl_data*) branch_predictor->data)->lhr);
+    free(((struct tbl_data*) branch_predictor->data)->pht);
+    free(((struct tbl_data*) branch_predictor->data));
+
 }
 
 struct branch_predictor *tbl_branch_predictor_new(uint32_t num_branches,
@@ -347,7 +372,17 @@ struct branch_predictor *tbl_branch_predictor_new(uint32_t num_branches,
     tbl_bp->predict = &tbl_branch_predictor_predict;
     tbl_bp->handle_result = &tbl_branch_predictor_handle_result;
 
-    // TODO allocate storage for any data necessary for this branch predictor
+    // allocate storage for any data necessary for this branch predictor
+    struct tbl_data *new_data = malloc(sizeof(struct tbl_data));
+    new_data->pht = malloc(16*16*sizeof(uint32_t));
+    for(int i = 0; i < 256; i++){
+	    new_data->pht[i] = 0;
+    }
+    new_data->lhr = malloc(16*sizeof(uint32_t));
+    for(int i = 0; i < 16; i++){
+	    new_data->lhr[i] = 0;
+    }
+    tbl_bp->data = new_data;
 
     return tbl_bp;
 }
