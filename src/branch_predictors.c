@@ -92,7 +92,8 @@ struct branch_predictor *at_branch_predictor_new(uint32_t num_branches,
 // BTFNT Branch Predictor
 // ============================================================================
 struct btfnt_data{
-	uint32_t prev_address;
+	uint32_t n;
+	struct branch_metadata *metadata;
 };
 
 enum branch_direction btfnt_branch_predictor_predict(struct branch_predictor *branch_predictor,
@@ -100,8 +101,16 @@ enum branch_direction btfnt_branch_predictor_predict(struct branch_predictor *br
 {
     // return this branch predictors prediction for the branch at the
     // given address.
-    if(address < ((struct btfnt_data*) branch_predictor->data)->prev_address)
+    uint32_t count = -1;
+    for (int i = 0; i < ((struct btfnt_data*) branch_predictor->data)->n; i++){
+	    if(((struct btfnt_data*) branch_predictor->data)->metadata[i].address == address){
+		count = i;
+	    }
+    }
+
+    if(((struct btfnt_data*) branch_predictor->data)->metadata[count].target <= address){
 	    return TAKEN;
+    }
     return NOT_TAKEN;
 }
 
@@ -110,12 +119,14 @@ void btfnt_branch_predictor_handle_result(struct branch_predictor *branch_predic
 {
     // use this function to update the state of the branch predictor
     // given the most recent branch direction.
-    ((struct btfnt_data*) branch_predictor->data)->prev_address = address;
+    //if(branch_direction == TAKEN)
+   
 }
 
 void btfnt_branch_predictor_cleanup(struct branch_predictor *branch_predictor)
 {
     // cleanup if necessary
+    free(((struct btfnt_data*) branch_predictor->data)->metadata);
     free(((struct btfnt_data*) branch_predictor->data));
 }
 
@@ -129,7 +140,9 @@ struct branch_predictor *btfnt_branch_predictor_new(uint32_t num_branches,
 
     // allocate storage for any data necessary for this branch predictor
     struct btfnt_data *new_data = malloc(sizeof(struct btfnt_data));
-    new_data->prev_address = -1;
+    new_data->metadata= malloc(num_branches*sizeof(struct branch_metadata));
+    new_data->n = num_branches;
+    new_data->metadata = branch_metadatas;
     btfnt_bp->data = new_data;
 
     return btfnt_bp;
